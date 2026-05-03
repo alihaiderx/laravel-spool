@@ -3,13 +3,17 @@
 namespace Alihaiderx\LaravelSpool\Providers;
 
 use Alihaiderx\LaravelSpool\Commands\InstallCommand;
+use Alihaiderx\LaravelSpool\Services\FileSystemBufferService;
 use Illuminate\Support\ServiceProvider;
 
 
 class AppServiceProvider extends ServiceProvider
 {
 
-  public function register() {}
+  public function register()
+  {
+    $this->registerSingletonServices();
+  }
 
   public function boot()
   {
@@ -37,5 +41,12 @@ class AppServiceProvider extends ServiceProvider
     $this->commands([
       InstallCommand::class
     ]);
+  }
+
+  protected function registerSingletonServices(): void
+  {
+    $this->app->singleton('alihaiderx.laravel-spool.file-system-buffer', function ($app) {
+      return new FileSystemBufferService();
+    });
   }
 }
