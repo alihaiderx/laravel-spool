@@ -1,6 +1,7 @@
 {
   "name": "alihaiderx/laravel-spool",
   "description": "Fast, non-blocking buffer for Laravel. Writes to Redis Streams or sharded filesystem files with automatic fallback, rotation, and batch flushing.",
+  "version": "1.0.0",
   "type": "library",
   "license": "MIT",
   "autoload": {
@@ -17,6 +18,13 @@
   ],
   "scripts": {
     "test": "phpunit"
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Alihaiderx\\LaravelSpool\\Providers\\AppServiceProvider"
+      ]
+    }
   },
   "minimum-stability": "stable",
   "suggest": {
