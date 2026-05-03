@@ -2,6 +2,7 @@
 
 namespace Alihaiderx\LaravelSpool\Services;
 
+use Alihaiderx\LaravelSpool\Events\RedisBufferConsumeEvent;
 use Exception;
 use Illuminate\Support\Facades\Redis;
 
@@ -87,6 +88,8 @@ class RedisBufferService
       }
 
       Redis::connection()->command('xack', [$event, $group, ...$ids]);
+
+      event(new RedisBufferConsumeEvent($batch));
 
     }
   }
