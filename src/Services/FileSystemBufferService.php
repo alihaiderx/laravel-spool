@@ -3,7 +3,6 @@
 namespace Alihaiderx\LaravelSpool\Services;
 
 use Carbon\Carbon;
-use Illuminate\Support\Str;
 use Exception;
 
 class FileSystemBufferService
@@ -43,20 +42,19 @@ class FileSystemBufferService
 
   // Buffer
 
-  function buffer(string $str, string $bucket): string|null
+  function buffer(array $arr, string $bucketSlug): string|null
   {
 
     $spoolConfig = config('spool');
-
     $maxShards = $spoolConfig['max_shards'];
     $shardSize = $spoolConfig['max_shard_size'];
 
-    $shard = crc32($str) % $maxShards;
-    $bucketSlug = Str::slug($bucket);
+    $payload = serialize($arr['payload'] ?? '');
+    $shard = crc32($payload) % $maxShards;
 
     try {
       $file = storage_path($this->generateSharedFileName($bucketSlug, $shard));
-      $line = $str . PHP_EOL;
+      $line = $payload . PHP_EOL;
       file_put_contents($file, $line, FILE_APPEND | LOCK_EX);
 
       if (file_exists($file) && filesize($file) > $shardSize) {
@@ -79,7 +77,7 @@ class FileSystemBufferService
 
   // Flush
 
-  function flush(callable $callback, ?string $bucketSlug = NULL): bool|null
+  function flush(callable $callback, ?string $bucketSlug = null): bool|null
   {
     $spoolConfig = config('spool');
     $dirs = $this->getDirs();
@@ -88,7 +86,7 @@ class FileSystemBufferService
     if (empty($bucketSlug)) $files = glob(storage_path($bufferActiveDir . DIRECTORY_SEPARATOR . '*.log'));
     else $files = glob(storage_path($bufferActiveDir . DIRECTORY_SEPARATOR . $bucketSlug . '-*.log'));
 
-    if (count($files) === 0) return NULL;
+    if (count($files) === 0) return null;
     $files = array_slice($files, 0, $spoolConfig['max_flush_shards']);
 
     foreach ($files as $file) {
@@ -96,11 +94,11 @@ class FileSystemBufferService
       $processingFile = str_replace('buffer' . DIRECTORY_SEPARATOR . 'active', 'buffer' . DIRECTORY_SEPARATOR . 'processing', $file);
       if (!rename($file, $processingFile)) continue;
 
-      $processedFile = $callback($processingFile, $bucketSlug);
+      $processedFileBool = $callback($processingFile, $bucketSlug);
 
-      if (!empty($processedFile)) {
-        $completedFile = str_replace('buffer' . DIRECTORY_SEPARATOR . 'processing', 'buffer' . DIRECTORY_SEPARATOR . 'completed', $processedFile);
-        rename($processedFile, $completedFile);
+      if (!empty($processedFileBool)) {
+        $completedFile = str_replace('buffer' . DIRECTORY_SEPARATOR . 'processing', 'buffer' . DIRECTORY_SEPARATOR . 'completed', $processingFile);
+        rename($processingFile, $completedFile);
       }
 
     }
