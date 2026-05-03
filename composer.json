@@ -1,0 +1,32 @@
+{
+  "name": "alihaiderx/laravel-spool",
+  "description": "Fast, non-blocking buffer for Laravel. Writes to Redis Streams or sharded filesystem files with automatic fallback, rotation, and batch flushing.",
+  "type": "library",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "Alihaiderx\\LaravelSpool\\": "src/",
+      "Alihaiderx\\LaravelSpool\\Tests": "tests/"
+    }
+  },
+  "authors": [
+    {
+      "name": "Ali Haider",
+      "email": "alihaider47125@gmail.com"
+    }
+  ],
+  "scripts": {
+    "test": "phpunit"
+  },
+  "minimum-stability": "stable",
+  "suggest": {
+    "predis/predis": "Required if you are not using the phpredis extension."
+  },
+  "require-dev": {
+    "orchestra/testbench": "^10.11",
+    "phpunit/phpunit": "^11.5"
+  },
+  "require": {
+    "illuminate/redis": "*"
+  }
+}
