@@ -27,14 +27,12 @@
     }
   },
   "minimum-stability": "stable",
-  "suggest": {
-    "predis/predis": "Required if you are not using the phpredis extension."
-  },
   "require-dev": {
     "orchestra/testbench": "^10.11",
     "phpunit/phpunit": "^11.5"
   },
   "require": {
-    "illuminate/redis": "*"
+    "illuminate/redis": "*",
+    "predis/predis": "*"
   }
 }

@@ -1,0 +1,15 @@
+version: '1.0.0'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: laravel_spool_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass 12345678
+    volumes:
+      - laravel_spool_data:/data
+    restart: unless-stopped
+
+volumes:
+  laravel_spool_data: {}
