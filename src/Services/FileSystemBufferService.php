@@ -117,7 +117,7 @@ class FileSystemBufferService
     $bufferCompletedDir = $dirs['bufferCompleted'];
     $cleanedFiles = [];
 
-    $maxFileAge = $spoolConfig['clean_shards_in_days'];
+    $maxFileAge = $spoolConfig['shards_ttl_days'];
 
     if (empty($bucketSlug)) {
       $files = glob(storage_path($bufferCompletedDir . DIRECTORY_SEPARATOR . '*.log'));
