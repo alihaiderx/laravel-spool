@@ -6,7 +6,7 @@
   "autoload": {
     "psr-4": {
       "Alihaiderx\\LaravelSpool\\": "src/",
-      "Alihaiderx\\LaravelSpool\\Tests": "tests/"
+      "Alihaiderx\\LaravelSpool\\Tests\\": "tests/"
     }
   },
   "authors": [
