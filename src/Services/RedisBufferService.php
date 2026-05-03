@@ -52,9 +52,12 @@ class RedisBufferService
   }
 
   function startConsume(): void{
+    
     $event = 'alihaiderx.laravel-spool.buffer';
     $group = 'alihaiderx.laravel-spool.buffer-consumer';
     $consumer = gethostname() . '-' . getmypid();
+    $spoolConfig = config('spool');
+    $batchSize = $spoolConfig['redis_batch_size'];
 
     if (function_exists('pcntl_async_signals')){
       pcntl_async_signals(true);
@@ -65,7 +68,7 @@ class RedisBufferService
 
     while (true) {
     
-      $messages = Redis::connection()->command('xreadgroup', [$group, $consumer, 500, 2000, false, $event, '>']);
+      $messages = Redis::connection()->command('xreadgroup', [$group, $consumer, $batchSize, 2000, false, $event, '>']);
 
       if (!$messages) continue;
 
