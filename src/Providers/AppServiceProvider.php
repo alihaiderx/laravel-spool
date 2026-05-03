@@ -3,9 +3,11 @@
 namespace Alihaiderx\LaravelSpool\Providers;
 
 use Alihaiderx\LaravelSpool\Commands\InstallCommand;
+use Alihaiderx\LaravelSpool\Commands\RedisConsumeCommand;
 use Alihaiderx\LaravelSpool\Services\BufferService;
 use Alihaiderx\LaravelSpool\Services\FileSystemBufferService;
 use Alihaiderx\LaravelSpool\Services\RedisBufferService;
+use Alihaiderx\LaravelSpool\Services\SpoolService;
 use Illuminate\Support\ServiceProvider;
 
 
@@ -41,12 +43,17 @@ class AppServiceProvider extends ServiceProvider
     if (!$this->app->runningInConsole()) return;
 
     $this->commands([
-      InstallCommand::class
+      InstallCommand::class,
+      RedisConsumeCommand::class
     ]);
   }
 
   protected function registerSingletonServices(): void
   {
+    $this->app->singleton('alihaiderx.laravel-spool.spool', function ($app) {
+      return new SpoolService();
+    });
+
     $this->app->singleton('alihaiderx.laravel-spool.file-system-buffer', function ($app) {
       return new FileSystemBufferService();
     });

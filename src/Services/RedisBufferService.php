@@ -50,7 +50,7 @@ class RedisBufferService
     return 'ok';
   }
 
-  function handleConsume(): void{
+  function startConsume(): void{
     $event = 'alihaiderx.laravel-spool.buffer';
     $group = 'alihaiderx.laravel-spool.buffer-consumer';
     $consumer = gethostname() . '-' . getmypid();
@@ -77,16 +77,17 @@ class RedisBufferService
           for ($i = 0; $i < count($rawFields); $i += 2) {
             $fields[$rawFields[$i]] = $rawFields[$i + 1];
           }
-          $data = json_decode($fields['payload'], true);
+    
           $batch[] = [
-            'payload'=> $fields['payload'],
-            'bucketSlug'=> $data['bucketSlug']
+            'payload'=> unserialize($fields['payload']),
+            'bucketSlug'=> $fields['bucketSlug']
           ];
           $ids[] = $id;
         }
       }
 
       Redis::connection()->command('xack', [$event, $group, ...$ids]);
+
     }
   }
 
