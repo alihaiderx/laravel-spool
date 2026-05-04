@@ -2,7 +2,23 @@
   <img src="art/logo.png" alt="Laravel Spool" width="350">
 </p>
 
+<h1 align="center">Laravel Spool</h1>
+
 <p align="center">
+  <strong>Batch and defer expensive database writes in Laravel — no Redis, no queues, no background workers required.</strong><br>
+  Works on shared hosting. Drop 1,000 individual DB inserts down to a single batch operation.
+</p>
+
+<p align="center">
+  <a href="https://packagist.org/packages/alihaiderx/laravel-spool">
+    <img src="https://img.shields.io/packagist/v/alihaiderx/laravel-spool" alt="Latest Version">
+  </a>
+  <a href="https://packagist.org/packages/alihaiderx/laravel-spool">
+    <img src="https://img.shields.io/packagist/dt/alihaiderx/laravel-spool" alt="Total Downloads">
+  </a>
+  <a href="https://github.com/alihaiderx/laravel-spool/stargazers">
+    <img src="https://img.shields.io/github/stars/alihaiderx/laravel-spool?style=flat" alt="GitHub Stars">
+  </a>
   <a href="https://opensource.org/licenses/MIT">
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
   </a>
@@ -14,245 +30,212 @@
   </a>
 </p>
 
-<p align="center">
-  A fast, non-blocking write buffer for Laravel. Accumulate high-frequency data into sharded files or Redis Streams and process them in batches on your own schedule.
-</p>
+---
 
-## What Is Laravel Spool?
+## The Problem
 
-Laravel Spool is a Laravel package that gives you a simple, reliable buffer layer for high-frequency writes. Instead of hitting your database or an external service on every single event, Spool captures the data into a fast buffer first. You then process those entries in a batch whenever you are ready, keeping your application responsive and your storage layer under control.
+Every time a user visits a page, triggers an event, or hits your API, your Laravel app likely writes to the database. Once. Per event. Every time.
 
-Spool supports two buffer drivers: a **filesystem driver** that writes to sharded local files, and a **Redis Streams driver** for lower-latency buffering with a long-running consumer process. Both share the same `Buffer` facade so switching between them requires minimal code changes.
+Under normal traffic that's fine. Under load it becomes a bottleneck: lock contention, slow response times, and a database that can't keep up.
 
-## The Problem It Solves
+The standard fix — Laravel queues, Redis, Horizon, Supervisor — adds real infrastructure complexity. And if you're on **shared hosting**, those options simply aren't available.
 
-High-frequency events are common in web applications: page views, API calls, activity logs, metrics, and so on. Writing each one directly to a database is expensive. Under load, it creates lock contention, slows down response times, and can bring down a production server.
+---
 
-The usual workarounds (queues, Redis lists, log pipelines) introduce operational overhead and extra infrastructure. Spool is designed to be the simplest possible answer: write fast to a buffer, process in a batch on a schedule.
+## The Solution
 
-## Requirements
+Laravel Spool captures high-frequency writes to a **fast local buffer first**, then processes them as a single batch on a schedule you control.
 
-- PHP 8.2+
-- Laravel 12.x
-- Redis driver requires the `phpredis` extension or `predis/predis`
+- **1,000 individual inserts → 1 batch insert**
+- **No Redis required** — the filesystem driver works anywhere PHP runs
+- **No background workers** — flush runs as a scheduled Laravel task
+- **No configuration overhead** — one install command and you're buffering
 
-## Installation
+It's a lightweight performance layer that fits between your application events and your database.
 
-### Via Composer
+---
+
+## Key Features
+
+| Feature | Why It Matters |
+|---|---|
+| **Filesystem buffering** | Works on any host — no Redis, no extensions, no extra services |
+| **Sharded writes** | Spreads data across multiple files to avoid write contention under load |
+| **Atomic processing** | File rename guarantees no two workers process the same shard |
+| **Three-stage lifecycle** | `active → processing → completed` gives you visibility and auditability |
+| **Multiple buckets** | Separate buffers per data type (`page-views`, `api-logs`, `metrics`) |
+| **Redis Streams driver** | Optional upgrade path when your infra supports it |
+| **Health check command** | Verify your setup is correct before going to production |
+| **TTL-based cleanup** | Completed shards auto-expire — no manual disk management |
+
+---
+
+## Use Cases
+
+- **Page view / analytics tracking** — buffer every hit, insert hourly in bulk
+- **Activity logs** — accumulate user actions, write in batches instead of per-action
+- **API usage metering** — count calls without a DB write on every request
+- **Bulk form submissions** — queue submissions to a buffer, process on a schedule
+- **Shared hosting optimization** — get performance gains without Redis or queue workers
+
+---
+
+## Quick Start
+
+### 1. Install
 
 ```bash
 composer require alihaiderx/laravel-spool
 ```
 
-Laravel will auto-discover the service provider. No manual registration is needed.
+Laravel auto-discovers the service provider. No manual registration needed.
 
-### Manual (without auto-discovery)
-
-If you have auto-discovery disabled, register the provider in `bootstrap/providers.php`:
-
-```php
-Alihaiderx\LaravelSpool\Providers\AppServiceProvider::class,
-```
-
-## Getting Started
-
-After installing the package, run the install command:
+### 2. Set Up
 
 ```bash
 php artisan spool:install
 ```
 
-This does two things:
+This publishes `config/spool.php` and creates the buffer directories under `storage/app/private/buffer/`.
 
-1. Publishes the `spool.php` config file to your `config/` directory.
-2. Creates the required buffer directories under `storage/app/private/buffer/`.
-
-## Buffer Drivers
-
-### The `Buffer` Facade (Recommended)
-
-The `Buffer` facade is the recommended way to write to the buffer. It automatically uses the Redis driver when Redis is available and `SPOOL_BUFFER_DRIVER=redis` is set, and falls back to the filesystem driver otherwise. This means your application code stays the same regardless of which driver is active.
+### 3. Buffer Data
 
 ```php
 use Alihaiderx\LaravelSpool\Facades\Buffer;
 
+// Call this on every page view, event, API hit, etc.
 Buffer::buffer([
     'payload' => [
-        'user_id' => 42,
+        'user_id' => $user->id,
         'event'   => 'page_view',
-        'url'     => '/home',
+        'url'     => request()->path(),
     ]
 ], 'page-views');
 ```
 
-The second argument is the **bucket slug**. It namespaces your data so you can have multiple independent buffers in the same application (e.g. `'page-views'`, `'api-logs'`, `'metrics'`).
+### 4. Flush in Batches
 
-### Filesystem Driver
-
-The filesystem driver requires no external dependencies. It writes payloads into small, sharded log files on disk and moves them through a three-stage lifecycle.
-
-#### How it works
-
-When you call `buffer()`, Spool serializes the payload and appends it to a shard file. The shard is chosen using a hash of the payload modulo `max_shards`, so writes are spread across multiple files to reduce contention. Once a shard reaches `max_shard_size`, it is rotated and a fresh file takes its place.
-
-When you call `flush()`, Spool atomically moves shards from `active/` to `processing/` using a file rename, runs your callback against each file, and then moves them to `completed/`. This rename ensures two workers can never process the same shard simultaneously. Completed shards are cleaned up by `clean()` after their TTL expires.
-
-#### Directory structure
-
-```
-storage/app/private/buffer/
-├── active/
-├── processing/
-└── completed/
-```
-
-| Directory | Purpose |
-|-----------|---------|
-| `active/` | Shards currently being written to. New payloads are appended here. |
-| `processing/` | Shards that have been picked up by a flush job. Moving a file here is an atomic rename, so no two workers will ever process the same shard. |
-| `completed/` | Shards that have been successfully processed. Kept for `shards_ttl_days` days as a short-term audit trail, then deleted by `clean()`. |
-
-#### Activating the filesystem driver
-
-This is the default. No changes are needed in your `.env`. If you are switching back from Redis:
-
-```dotenv
-SPOOL_BUFFER_DRIVER=file
-```
-
-#### Usage
-
-**Buffer a payload:**
+In `routes/console.php`, schedule a flush:
 
 ```php
 use Alihaiderx\LaravelSpool\Facades\FileSystemBuffer;
 
-FileSystemBuffer::buffer([
-    'payload' => [
-        'user_id' => 42,
-        'event'   => 'page_view',
-    ]
-], 'page-views');
+Schedule::call(function () {
+    FileSystemBuffer::flush(function (string $file, ?string $bucket): bool {
+        $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $rows  = array_map(fn ($line) => unserialize($line), $lines);
+
+        // One DB insert for potentially thousands of events
+        DB::table('page_views')->insert($rows);
+
+        return true;
+    }, 'page-views');
+})->everyMinute();
+
+Schedule::call(function () {
+    FileSystemBuffer::clean(50, 'page-views');
+})->daily();
 ```
 
-**Flush a bucket (typically in a scheduled command):**
+That's it. Your app now buffers writes and processes them in batches.
 
-```php
-FileSystemBuffer::flush(function (string $filePath, ?string $bucketSlug): bool {
-    $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    $rows  = array_map(fn ($line) => unserialize($line), $lines);
+---
 
-    // Insert $rows into your database, send to an API, etc.
+## How It Works
 
-    return true; // Returning true moves the shard to completed/.
-}, 'page-views');
+### Filesystem Driver (Default)
+
+Every call to `Buffer::buffer()` serializes the payload and appends it to a shard file. Writes are distributed across up to `max_shards` files using a hash, which reduces file-level lock contention when multiple requests write simultaneously.
+
+When `flush()` runs:
+
+1. Shard files in `active/` are **atomically renamed** to `processing/` — this is a single OS-level rename, so two concurrent flush jobs can never pick up the same shard.
+2. Your callback receives each shard file path. You read the lines, process them however you need, and return `true`.
+3. Processed shards move to `completed/` and are held for `shards_ttl_days` days before `clean()` removes them.
+
+```
+storage/app/private/buffer/
+├── active/       ← new payloads are written here
+├── processing/   ← shards claimed by a flush job
+└── completed/    ← successfully processed, kept for audit
 ```
 
-Returning `true` from the callback moves the shard to `completed/`. Returning anything falsy leaves it in `processing/` so you can inspect or retry it manually.
+### Redis Streams Driver (Optional)
 
-**Clean up old completed shards:**
-
-```php
-FileSystemBuffer::clean(50, 'page-views');
-```
-
-The first argument limits how many files are checked in a single call. Run this on a daily schedule to keep disk usage in check.
-
-### Redis Driver
-
-The Redis driver writes payloads to a **Redis Stream** using `XADD`. A separate long-running process reads from the stream in batches and fires a Laravel event that you listen to in your application code.
-
-This driver is a good fit when you need lower write latency than the filesystem provides, or when your infrastructure already runs Redis.
-
-#### Prerequisites
-
-Install `predis/predis` if you are not using the `phpredis` PHP extension:
-
-```bash
-composer require predis/predis
-```
-
-#### Activating the Redis driver
-
-Set the following in your `.env`:
-
-```dotenv
-SPOOL_BUFFER_DRIVER=redis
-```
-
-Make sure your `REDIS_HOST`, `REDIS_PORT`, and `REDIS_PASSWORD` are configured as you would for any other Laravel Redis connection.
-
-#### Starting the consumer
-
-The Redis driver requires a long-running process that reads messages off the stream and fires them as batched events. Start it with:
+When Redis is available, set `SPOOL_BUFFER_DRIVER=redis`. The package writes to a Redis Stream via `XADD`. A long-running consumer process reads batches from the stream and fires a `RedisBufferConsumeEvent` that your application handles.
 
 ```bash
 php artisan spool:start-redis-consume
 ```
 
-This process blocks and runs continuously. In production, manage it with **Supervisor** (or a similar process monitor) so it restarts automatically if it stops.
+---
 
-A minimal Supervisor config:
+## Why Not Just Use Laravel Queues?
 
-```ini
-[program:spool-redis-consumer]
-command=php /var/www/html/artisan spool:start-redis-consume
-autostart=true
-autorestart=true
-stderr_logfile=/var/log/spool-consumer.err.log
-stdout_logfile=/var/log/spool-consumer.out.log
+| | Laravel Spool | Laravel Queues |
+|---|---|---|
+| **Works on shared hosting** | Yes | Usually not |
+| **Requires Redis** | No (filesystem driver) | Often yes |
+| **Requires Supervisor** | No | Yes, for reliability |
+| **Best for** | Batching identical writes | Individual background jobs |
+| **Processing model** | Scheduled batch flush | Per-job async |
+| **Infrastructure overhead** | Minimal | Queue worker + process monitor |
+
+**Use Spool when** you need to batch many similar writes (analytics, logs, counters) and want zero extra infrastructure.
+
+**Use Laravel queues when** you need per-job async processing, retries, failed job handling, or complex background workflows.
+
+They are not mutually exclusive — many apps use both.
+
+---
+
+## Performance Impact
+
+**Without Spool** — direct writes on every event:
+
+```
+1,000 page views → 1,000 individual INSERT statements
+Response time per request: ~15–40ms (DB write cost added)
+DB load: constant, spiky, high under traffic
 ```
 
-#### Listening for consumed batches
+**With Spool** — buffered and batched:
 
-When the consumer reads a batch from Redis, it fires `RedisBufferConsumeEvent`. Register a listener for it wherever you set up your application logic, for example in a service provider or `AppServiceProvider::boot()`:
-
-```php
-use Alihaiderx\LaravelSpool\Facades\Buffer;
-use Alihaiderx\LaravelSpool\Events\RedisBufferConsumeEvent;
-
-Buffer::listenRedis(function (RedisBufferConsumeEvent $event) {
-    $batch = $event->batch;
-    // Each item in $batch has 'payload' and 'bucketSlug' keys.
-
-    $pageViews = array_filter($batch, fn ($item) => $item['bucketSlug'] === 'page-views');
-
-    // Insert into your database, push to an analytics service, etc.
-});
+```
+1,000 page views → buffer to disk (microseconds per write)
+Scheduled flush → 1 batch INSERT of 1,000 rows
+Response time per request: no DB write overhead
+DB load: predictable, batched, low
 ```
 
-The `$event->batch` array contains all messages consumed in a single read, up to `redis_batch_size` items. Each entry has:
+The write cost moves off your HTTP response cycle entirely.
 
-| Key | Description |
-|-----|-------------|
-| `payload` | The unserialized payload you passed to `buffer()`. |
-| `bucketSlug` | The bucket name you passed when buffering. |
+---
 
-#### Buffering with the Redis driver
+## Shared Hosting Advantage
 
-The API is identical to the filesystem driver:
+Most Laravel performance packages assume you have Redis, a queue worker, and Supervisor. On shared hosting, you have none of those.
 
-```php
-use Alihaiderx\LaravelSpool\Facades\Buffer;
+Laravel Spool's filesystem driver removes those requirements entirely:
 
-Buffer::buffer([
-    'payload' => ['user_id' => 42, 'event' => 'page_view']
-], 'page-views');
+- **No Redis** — buffers to local disk files
+- **No background workers** — flushing runs via Laravel's scheduler (a single cron entry)
+- **No Supervisor** — nothing to keep alive
+- **No extra dependencies** — just PHP and a writable filesystem
+
+The only thing required is the standard Laravel scheduler cron entry in your cPanel or server cron:
+
+```
+* * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-You can also use the `RedisBuffer` facade directly if you want to target Redis explicitly:
+That's standard Laravel. If your app already runs on shared hosting, Spool works immediately.
 
-```php
-use Alihaiderx\LaravelSpool\Facades\RedisBuffer;
-
-RedisBuffer::buffer([
-    'payload' => ['user_id' => 42, 'event' => 'page_view']
-], 'page-views');
-```
+---
 
 ## Configuration
 
-After running `spool:install`, the config lives at `config/spool.php`. All values can be set via `.env`.
+Published to `config/spool.php` after running `spool:install`.
 
 ```php
 return [
@@ -265,65 +248,107 @@ return [
 ];
 ```
 
-| Key | Env variable | Default | Driver | Description |
-|-----|-------------|---------|--------|-------------|
-| `buffer_driver` | `SPOOL_BUFFER_DRIVER` | `file` | Both | Which driver to use. Accepted values: `file`, `redis`. |
-| `max_shards` | `SPOOL_MAX_SHARDS` | `30` | Filesystem | Number of shard files per bucket. Higher values spread writes across more files, reducing lock contention under heavy load. |
-| `max_shard_size` | `SPOOL_MAX_SHARD_SIZE` | `307200` (300 KB) | Filesystem | Maximum size of a shard file in bytes. Once a shard exceeds this, it is rotated and a fresh file is used. |
-| `max_flush_shards` | `SPOOL_MAX_FLUSH_SHARDS` | `5` | Filesystem | How many shards to process in a single `flush()` call. Keeps flush jobs short and predictable. |
-| `shards_ttl_days` | `SPOOL_SHARDS_TTL_DAYS` | `3` | Filesystem | How many days to keep completed shards before `clean()` deletes them. |
-| `redis_batch_size` | `SPOOL_REDIS_BATCH_SIZE` | `500` | Redis | How many messages the consumer reads from the stream per iteration before firing `RedisBufferConsumeEvent`. |
+| Variable | Default | Description |
+|---|---|---|
+| `SPOOL_BUFFER_DRIVER` | `file` | `file` or `redis` |
+| `SPOOL_MAX_SHARDS` | `30` | Number of shard files per bucket. More shards = less write contention. |
+| `SPOOL_MAX_SHARD_SIZE` | `307200` (300 KB) | Shard file size limit before rotation. |
+| `SPOOL_MAX_FLUSH_SHARDS` | `5` | Max shards processed per `flush()` call. Keeps jobs short. |
+| `SPOOL_SHARDS_TTL_DAYS` | `3` | Days to retain completed shards before deletion. |
+| `SPOOL_REDIS_BATCH_SIZE` | `500` | Messages read per Redis consumer iteration. |
+
+---
 
 ## Health Check
 
-Run the following command to verify that Spool is correctly set up in your environment:
+Before deploying, verify your setup:
 
 ```bash
 php artisan spool:health
 ```
 
-It checks:
+This checks that buffer directories exist and are writable, and that all config values are valid.
 
-- The `active/`, `processing/`, and `completed/` buffer directories exist and are writable
-- All config values are valid (correct types, sensible ranges, no conflicting values)
-
-```bash
-# Everything is fine
+```
 All checks passed.
+```
 
-# Problems found
+```
 ERROR  Buffer 'active' directory does not exist: .../storage/app/private/buffer/active
 ERROR  max_flush_shards (10) cannot exceed max_shards (5).
 ```
 
-The command exits with code `0` on success and `1` on failure, so it can be wired into deployment pipelines or Docker health checks.
+The command exits with code `0` on success and `1` on failure — safe to use in deployment pipelines and Docker health checks.
 
-## Suggested Scheduled Setup (Filesystem Driver)
+---
 
-When using the filesystem driver, add flush and clean calls to your schedule in `routes/console.php`:
+## Redis Driver Setup (Optional)
 
-```php
-use Alihaiderx\LaravelSpool\Facades\FileSystemBuffer;
+If your infrastructure supports Redis and you want lower write latency:
 
-Schedule::call(function () {
-    FileSystemBuffer::flush(function (string $file, ?string $bucket): bool {
-        $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        $rows  = array_map(fn ($line) => unserialize($line), $lines);
+**1.** Install predis if not using the `phpredis` extension:
 
-        // Process $rows...
-
-        return true;
-    }, 'page-views');
-})->everyMinute();
-
-Schedule::call(function () {
-    FileSystemBuffer::clean(50, 'page-views');
-})->daily();
+```bash
+composer require predis/predis
 ```
 
-## Performance Metrics
+**2.** Set the driver:
 
-> Coming soon. Benchmarks comparing buffered vs. direct writes across different load profiles will be published here.
+```dotenv
+SPOOL_BUFFER_DRIVER=redis
+```
+
+**3.** Start the consumer (manage with Supervisor in production):
+
+```bash
+php artisan spool:start-redis-consume
+```
+
+**4.** Listen for batched events in your application:
+
+```php
+use Alihaiderx\LaravelSpool\Facades\Buffer;
+use Alihaiderx\LaravelSpool\Events\RedisBufferConsumeEvent;
+
+Buffer::listenRedis(function (RedisBufferConsumeEvent $event) {
+    $pageViews = array_filter(
+        $event->batch,
+        fn ($item) => $item['bucketSlug'] === 'page-views'
+    );
+
+    DB::table('page_views')->insert(array_column($pageViews, 'payload'));
+});
+```
+
+---
+
+## Requirements
+
+- PHP 8.2+
+- Laravel 12.x
+- Redis driver: `phpredis` extension or `predis/predis`
+
+---
+
+## Roadmap
+
+- [ ] Dashboard UI for monitoring buffer state
+- [ ] Artisan command to manually trigger a flush
+- [ ] Laravel 11.x support
+- [ ] Benchmarks and performance comparison guide
+
+---
+
+## Contributing
+
+Pull requests are welcome. For significant changes, open an issue first to discuss what you'd like to change.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Commit your changes
+4. Open a pull request
+
+---
 
 ## License
 
