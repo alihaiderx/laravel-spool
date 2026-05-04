@@ -18,8 +18,6 @@
   A fast, non-blocking write buffer for Laravel. Accumulate high-frequency data into sharded files or Redis Streams and process them in batches on your own schedule.
 </p>
 
----
-
 ## What Is Laravel Spool?
 
 Laravel Spool is a Laravel package that gives you a simple, reliable buffer layer for high-frequency writes. Instead of hitting your database or an external service on every single event, Spool captures the data into a fast buffer first. You then process those entries in a batch whenever you are ready, keeping your application responsive and your storage layer under control.
@@ -37,8 +35,6 @@ The usual workarounds (queues, Redis lists, log pipelines) introduce operational
 - PHP 8.2+
 - Laravel 12.x
 - Redis driver requires the `phpredis` extension or `predis/predis`
-
----
 
 ## Installation
 
@@ -58,8 +54,6 @@ If you have auto-discovery disabled, register the provider in `bootstrap/provide
 Alihaiderx\LaravelSpool\Providers\AppServiceProvider::class,
 ```
 
----
-
 ## Getting Started
 
 After installing the package, run the install command:
@@ -72,8 +66,6 @@ This does two things:
 
 1. Publishes the `spool.php` config file to your `config/` directory.
 2. Creates the required buffer directories under `storage/app/private/buffer/`.
-
----
 
 ## Buffer Drivers
 
@@ -94,8 +86,6 @@ Buffer::buffer([
 ```
 
 The second argument is the **bucket slug**. It namespaces your data so you can have multiple independent buffers in the same application (e.g. `'page-views'`, `'api-logs'`, `'metrics'`).
-
----
 
 ### Filesystem Driver
 
@@ -167,8 +157,6 @@ FileSystemBuffer::clean(50, 'page-views');
 ```
 
 The first argument limits how many files are checked in a single call. Run this on a daily schedule to keep disk usage in check.
-
----
 
 ### Redis Driver
 
@@ -262,8 +250,6 @@ RedisBuffer::buffer([
 ], 'page-views');
 ```
 
----
-
 ## Configuration
 
 After running `spool:install`, the config lives at `config/spool.php`. All values can be set via `.env`.
@@ -288,7 +274,29 @@ return [
 | `shards_ttl_days` | `SPOOL_SHARDS_TTL_DAYS` | `3` | Filesystem | How many days to keep completed shards before `clean()` deletes them. |
 | `redis_batch_size` | `SPOOL_REDIS_BATCH_SIZE` | `500` | Redis | How many messages the consumer reads from the stream per iteration before firing `RedisBufferConsumeEvent`. |
 
----
+## Health Check
+
+Run the following command to verify that Spool is correctly set up in your environment:
+
+```bash
+php artisan spool:health
+```
+
+It checks:
+
+- The `active/`, `processing/`, and `completed/` buffer directories exist and are writable
+- All config values are valid (correct types, sensible ranges, no conflicting values)
+
+```bash
+# Everything is fine
+All checks passed.
+
+# Problems found
+ERROR  Buffer 'active' directory does not exist: .../storage/app/private/buffer/active
+ERROR  max_flush_shards (10) cannot exceed max_shards (5).
+```
+
+The command exits with code `0` on success and `1` on failure, so it can be wired into deployment pipelines or Docker health checks.
 
 ## Suggested Scheduled Setup (Filesystem Driver)
 
@@ -313,13 +321,9 @@ Schedule::call(function () {
 })->daily();
 ```
 
----
-
 ## Performance Metrics
 
 > Coming soon. Benchmarks comparing buffered vs. direct writes across different load profiles will be published here.
-
----
 
 ## License
 
