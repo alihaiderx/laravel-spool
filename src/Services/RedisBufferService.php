@@ -4,6 +4,7 @@ namespace Alihaiderx\LaravelSpool\Services;
 
 use Alihaiderx\LaravelSpool\Events\RedisBufferConsumeEvent;
 use Exception;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 
 class RedisBufferService
@@ -30,6 +31,7 @@ class RedisBufferService
       Redis::ping();
       return true;
     } catch (\Throwable $e) {
+      Log::error($e->getMessage(), ['trace'=>$e->getTraceAsString()]);
       return false;
     }
   }

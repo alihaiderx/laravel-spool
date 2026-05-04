@@ -3,8 +3,9 @@
 namespace Alihaiderx\LaravelSpool\Commands;
 
 use Alihaiderx\LaravelSpool\Facades\FileSystemBuffer;
-use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class InstallCommand extends Command
 {
@@ -30,8 +31,9 @@ class InstallCommand extends Command
 
       $this->info('Laravel Spool package installed.');
 
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
       $this->error($e->getMessage());
+      Log::error($e->getMessage());
     }
   }
 }

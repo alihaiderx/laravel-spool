@@ -4,6 +4,8 @@ namespace Alihaiderx\LaravelSpool\Services;
 
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class FileSystemBufferService
 {
@@ -11,10 +13,10 @@ class FileSystemBufferService
   function getDirs()
   {
     return [
-      'buffer' => 'app'. DIRECTORY_SEPARATOR.'private' . DIRECTORY_SEPARATOR . 'buffer',
-      'bufferActive' => 'app'.DIRECTORY_SEPARATOR.'private' . DIRECTORY_SEPARATOR . 'buffer' . DIRECTORY_SEPARATOR . 'active',
-      'bufferProcessing' => 'app'.DIRECTORY_SEPARATOR.'private' . DIRECTORY_SEPARATOR . 'buffer' . DIRECTORY_SEPARATOR . 'processing',
-      'bufferCompleted' => 'app'.DIRECTORY_SEPARATOR.'private' . DIRECTORY_SEPARATOR . 'buffer' . DIRECTORY_SEPARATOR . 'completed',
+      'buffer' => 'app' . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . 'buffer',
+      'bufferActive' => 'app' . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . 'buffer' . DIRECTORY_SEPARATOR . 'active',
+      'bufferProcessing' => 'app' . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . 'buffer' . DIRECTORY_SEPARATOR . 'processing',
+      'bufferCompleted' => 'app' . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . 'buffer' . DIRECTORY_SEPARATOR . 'completed',
     ];
   }
 
@@ -45,14 +47,15 @@ class FileSystemBufferService
   function buffer(array $arr, string $bucketSlug): string|null
   {
 
-    $spoolConfig = config('spool');
-    $maxShards = $spoolConfig['max_shards'];
-    $shardSize = $spoolConfig['max_shard_size'];
-
-    $payload = serialize($arr['payload'] ?? '');
-    $shard = abs(crc32($payload)) % $maxShards;
-
     try {
+
+      $spoolConfig = config('spoolx');
+      $maxShards = $spoolConfig['max_shards'];
+      $shardSize = $spoolConfig['max_shard_size'];
+
+      $payload = serialize($arr['payload'] ?? '');
+      $shard = abs(crc32($payload)) % $maxShards;
+
       $file = storage_path($this->generateSharedFileName($bucketSlug, $shard));
       $line = $payload . PHP_EOL;
       file_put_contents($file, $line, FILE_APPEND | LOCK_EX);
@@ -63,7 +66,8 @@ class FileSystemBufferService
       }
 
       return $file;
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
+      Log::error($e->getMessage(), ['trace'=>$e->getTraceAsString()]);
       return NULL;
     }
   }
@@ -100,7 +104,6 @@ class FileSystemBufferService
         $completedFile = str_replace('buffer' . DIRECTORY_SEPARATOR . 'processing', 'buffer' . DIRECTORY_SEPARATOR . 'completed', $processingFile);
         rename($processingFile, $completedFile);
       }
-
     }
 
     return true;
@@ -119,36 +122,35 @@ class FileSystemBufferService
 
     if (empty($bucketSlug)) {
       $files = glob(storage_path($bufferCompletedDir . DIRECTORY_SEPARATOR . '*.log'));
-    }
-    else {
+    } else {
       $files = glob(storage_path($bufferCompletedDir . DIRECTORY_SEPARATOR . $bucketSlug . '-*.log'));
     }
 
     $files = array_splice($files, 0, $numberOfFiles);
-    
+
     foreach ($files as $file) {
 
-      $claim = $file.'.deleting';
+      $claim = $file . '.deleting';
 
       $fileAge = $this->getShardAgeInDays($file);
-      if($fileAge === NULL) continue;
+      if ($fileAge === NULL) continue;
 
-      if($fileAge < ($maxFileAge) * -1){
-        if(rename($file, $claim)){
+      if ($fileAge < ($maxFileAge) * -1) {
+        if (rename($file, $claim)) {
           unlink($claim);
           $cleanedFiles[] = $file;
         }
       }
-
     }
 
     return $cleanedFiles;
   }
 
-  function getShardAgeInDays(string $file){
+  function getShardAgeInDays(string $file)
+  {
 
     try {
-       $date = NULL;
+      $date = NULL;
 
       if (preg_match('/\d{4}-\d{2}-\d{2}/', $file, $matches)) {
         $date = Carbon::createFromFormat('Y-m-d', $matches[0])->startOfDay();
@@ -156,11 +158,8 @@ class FileSystemBufferService
       }
 
       return NULL;
-    }
-    catch(Exception $e){
+    } catch (Exception $e) {
       return NULL;
     }
-
   }
-
 }
