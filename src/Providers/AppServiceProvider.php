@@ -2,6 +2,7 @@
 
 namespace Alihaiderx\LaravelSpool\Providers;
 
+use Alihaiderx\LaravelSpool\Commands\HealthCheckCommand;
 use Alihaiderx\LaravelSpool\Commands\InstallCommand;
 use Alihaiderx\LaravelSpool\Commands\RedisConsumeCommand;
 use Alihaiderx\LaravelSpool\Services\BufferService;
@@ -44,7 +45,8 @@ class AppServiceProvider extends ServiceProvider
 
     $this->commands([
       InstallCommand::class,
-      RedisConsumeCommand::class
+      RedisConsumeCommand::class,
+      HealthCheckCommand::class,
     ]);
   }
 
