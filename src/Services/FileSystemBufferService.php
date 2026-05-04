@@ -50,7 +50,7 @@ class FileSystemBufferService
     $shardSize = $spoolConfig['max_shard_size'];
 
     $payload = serialize($arr['payload'] ?? '');
-    $shard = crc32($payload) % $maxShards;
+    $shard = abs(crc32($payload)) % $maxShards;
 
     try {
       $file = storage_path($this->generateSharedFileName($bucketSlug, $shard));
