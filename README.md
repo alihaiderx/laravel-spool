@@ -30,8 +30,6 @@
   </a>
 </p>
 
----
-
 ## The Problem
 
 Every time a user visits a page, triggers an event, or hits your API, your Laravel app likely writes to the database. Once. Per event. Every time.
@@ -39,8 +37,6 @@ Every time a user visits a page, triggers an event, or hits your API, your Larav
 Under normal traffic that's fine. Under load it becomes a bottleneck: lock contention, slow response times, and a database that can't keep up.
 
 The standard fix — Laravel queues, Redis, Horizon, Supervisor — adds real infrastructure complexity. And if you're on **shared hosting**, those options simply aren't available.
-
----
 
 ## The Solution
 
@@ -52,8 +48,6 @@ Laravel Spool captures high-frequency writes to a **fast local buffer first**, t
 - **No configuration overhead** — one install command and you're buffering
 
 It's a lightweight performance layer that fits between your application events and your database.
-
----
 
 ## Key Features
 
@@ -68,8 +62,6 @@ It's a lightweight performance layer that fits between your application events a
 | **Health check command** | Verify your setup is correct before going to production |
 | **TTL-based cleanup** | Completed shards auto-expire — no manual disk management |
 
----
-
 ## Use Cases
 
 - **Page view / analytics tracking** — buffer every hit, insert hourly in bulk
@@ -77,8 +69,6 @@ It's a lightweight performance layer that fits between your application events a
 - **API usage metering** — count calls without a DB write on every request
 - **Bulk form submissions** — queue submissions to a buffer, process on a schedule
 - **Shared hosting optimization** — get performance gains without Redis or queue workers
-
----
 
 ## Quick Start
 
@@ -139,8 +129,6 @@ Schedule::call(function () {
 
 That's it. Your app now buffers writes and processes them in batches.
 
----
-
 ## How It Works
 
 ### Filesystem Driver (Default)
@@ -168,8 +156,6 @@ When Redis is available, set `SPOOL_BUFFER_DRIVER=redis`. The package writes to 
 php artisan spool:start-redis-consume
 ```
 
----
-
 ## Why Not Just Use Laravel Queues?
 
 | | Laravel Spool | Laravel Queues |
@@ -186,8 +172,6 @@ php artisan spool:start-redis-consume
 **Use Laravel queues when** you need per-job async processing, retries, failed job handling, or complex background workflows.
 
 They are not mutually exclusive — many apps use both.
-
----
 
 ## Performance Impact
 
@@ -210,8 +194,6 @@ DB load: predictable, batched, low
 
 The write cost moves off your HTTP response cycle entirely.
 
----
-
 ## Shared Hosting Advantage
 
 Most Laravel performance packages assume you have Redis, a queue worker, and Supervisor. On shared hosting, you have none of those.
@@ -230,8 +212,6 @@ The only thing required is the standard Laravel scheduler cron entry in your cPa
 ```
 
 That's standard Laravel. If your app already runs on shared hosting, Spool works immediately.
-
----
 
 ## Configuration
 
@@ -257,8 +237,6 @@ return [
 | `SPOOL_SHARDS_TTL_DAYS` | `3` | Days to retain completed shards before deletion. |
 | `SPOOL_REDIS_BATCH_SIZE` | `500` | Messages read per Redis consumer iteration. |
 
----
-
 ## Health Check
 
 Before deploying, verify your setup:
@@ -279,8 +257,6 @@ ERROR  max_flush_shards (10) cannot exceed max_shards (5).
 ```
 
 The command exits with code `0` on success and `1` on failure — safe to use in deployment pipelines and Docker health checks.
-
----
 
 ## Redis Driver Setup (Optional)
 
@@ -320,15 +296,11 @@ Buffer::listenRedis(function (RedisBufferConsumeEvent $event) {
 });
 ```
 
----
-
 ## Requirements
 
 - PHP 8.2+
 - Laravel 12.x
 - Redis driver: `phpredis` extension or `predis/predis`
-
----
 
 ## Roadmap
 
@@ -336,8 +308,6 @@ Buffer::listenRedis(function (RedisBufferConsumeEvent $event) {
 - [ ] Artisan command to manually trigger a flush
 - [ ] Laravel 11.x support
 - [ ] Benchmarks and performance comparison guide
-
----
 
 ## Contributing
 
@@ -347,8 +317,6 @@ Pull requests are welcome. For significant changes, open an issue first to discu
 2. Create a feature branch (`git checkout -b feature/your-feature`)
 3. Commit your changes
 4. Open a pull request
-
----
 
 ## License
 
